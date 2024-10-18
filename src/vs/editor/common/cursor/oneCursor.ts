@@ -13,18 +13,41 @@ import { PositionAffinity, TrackedRangeStickiness } from '../model.js';
 /**
  * Represents a single cursor.
 */
+/**
+ * 表示单个光标。
+ * 管理光标的模型状态和视图状态，以及选择跟踪。
+ */
 export class Cursor {
 
+	/**
+	 * 光标在模型中的状态
+	 */
 	public modelState!: SingleCursorState;
+
+	/**
+	 * 光标在视图中的状态
+	 */
 	public viewState!: SingleCursorState;
 
+	/**
+	 * 跟踪选择范围的ID
+	 */
 	private _selTrackedRange: string | null;
+
+	/**
+	 * 是否跟踪选择
+	 */
 	private _trackSelection: boolean;
 
+	/**
+	 * 构造函数
+	 * @param context 光标上下文
+	 */
 	constructor(context: CursorContext) {
 		this._selTrackedRange = null;
 		this._trackSelection = true;
 
+		// 初始化光标状态为文档开头(1,1)位置
 		this._setState(
 			context,
 			new SingleCursorState(new Range(1, 1, 1, 1), SelectionStartKind.Simple, 0, new Position(1, 1), 0),
@@ -32,20 +55,32 @@ export class Cursor {
 		);
 	}
 
+	/**
+	 * 销毁光标，移除跟踪的范围
+	 */
 	public dispose(context: CursorContext): void {
 		this._removeTrackedRange(context);
 	}
 
+	/**
+	 * 开始跟踪选择
+	 */
 	public startTrackingSelection(context: CursorContext): void {
 		this._trackSelection = true;
 		this._updateTrackedRange(context);
 	}
 
+	/**
+	 * 停止跟踪选择
+	 */
 	public stopTrackingSelection(context: CursorContext): void {
 		this._trackSelection = false;
 		this._removeTrackedRange(context);
 	}
 
+	/**
+	 * 更新跟踪的范围
+	 */
 	private _updateTrackedRange(context: CursorContext): void {
 		if (!this._trackSelection) {
 			// don't track the selection
@@ -54,14 +89,23 @@ export class Cursor {
 		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 
+	/**
+	 * 移除跟踪的范围
+	 */
 	private _removeTrackedRange(context: CursorContext): void {
 		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 
+	/**
+	 * 将光标转换为CursorState对象
+	 */
 	public asCursorState(): CursorState {
 		return new CursorState(this.modelState, this.viewState);
 	}
 
+	/**
+	 * 从标记中读取选择
+	 */
 	public readSelectionFromMarkers(context: CursorContext): Selection {
 		const range = context.model._getTrackedRange(this._selTrackedRange!)!;
 
@@ -73,14 +117,23 @@ export class Cursor {
 		return Selection.fromRange(range, this.modelState.selection.getDirection());
 	}
 
+	/**
+	 * 确保光标状态有效
+	 */
 	public ensureValidState(context: CursorContext): void {
 		this._setState(context, this.modelState, this.viewState);
 	}
 
+	/**
+	 * 设置光标状态
+	 */
 	public setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		this._setState(context, modelState, viewState);
 	}
 
+	/**
+	 * 使用缓存验证位置
+	 */
 	private static _validatePositionWithCache(viewModel: ICursorSimpleModel, position: Position, cacheInput: Position, cacheOutput: Position): Position {
 		if (position.equals(cacheInput)) {
 			return cacheOutput;
@@ -88,6 +141,9 @@ export class Cursor {
 		return viewModel.normalizePosition(position, PositionAffinity.None);
 	}
 
+	/**
+	 * 验证视图状态
+	 */
 	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState): SingleCursorState {
 		const position = viewState.position;
 		const sStartPosition = viewState.selectionStart.getStartPosition();
@@ -111,6 +167,9 @@ export class Cursor {
 		);
 	}
 
+	/**
+	 * 设置光标状态
+	 */
 	private _setState(context: CursorContext, modelState: SingleCursorState | null, viewState: SingleCursorState | null): void {
 		if (viewState) {
 			viewState = Cursor._validateViewState(context.viewModel, viewState);
