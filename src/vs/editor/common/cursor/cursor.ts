@@ -23,6 +23,7 @@ import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
 
+// CursorsController 类:负责管理编辑器中的光标
 export class CursorsController extends Disposable {
 
 	private readonly _model: ITextModel;
@@ -39,6 +40,7 @@ export class CursorsController extends Disposable {
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
 
+	// 构造函数,初始化光标控制器
 	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		super();
 		this._model = model;
@@ -62,11 +64,13 @@ export class CursorsController extends Disposable {
 		super.dispose();
 	}
 
+	// 更新光标配置
 	public updateConfiguration(cursorConfig: CursorConfiguration): void {
 		this.context = new CursorContext(this._model, this._viewModel, this._coordinatesConverter, cursorConfig);
 		this._cursors.updateContext(this.context);
 	}
 
+	// 处理行映射变化
 	public onLineMappingChanged(eventsCollector: ViewModelEventsCollector): void {
 		if (this._knownModelVersionId !== this._model.getVersionId()) {
 			// There are model change events that I didn't yet receive.
@@ -82,6 +86,7 @@ export class CursorsController extends Disposable {
 		this.setStates(eventsCollector, 'viewModel', CursorChangeReason.NotSet, this.getCursorStates());
 	}
 
+	// 设置焦点状态
 	public setHasFocus(hasFocus: boolean): void {
 		this._hasFocus = hasFocus;
 	}
@@ -102,6 +107,7 @@ export class CursorsController extends Disposable {
 
 	// ------ some getters/setters
 
+	// 获取主光标状态
 	public getPrimaryCursorState(): CursorState {
 		return this._cursors.getPrimaryCursor();
 	}
@@ -114,6 +120,7 @@ export class CursorsController extends Disposable {
 		return this._cursors.getAll();
 	}
 
+	// 设置光标状态
 	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
 		let reachedMaxCursorCount = false;
 		const multiCursorLimit = this.context.cursorConfig.multiCursorLimit;
@@ -346,6 +353,7 @@ export class CursorsController extends Disposable {
 		this._autoClosedActions.push(new AutoClosedAction(this._model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations));
 	}
 
+	// 执行编辑操作
 	private _executeEditOperation(opResult: EditOperationResult | null): void {
 
 		if (!opResult) {
@@ -505,6 +513,7 @@ export class CursorsController extends Disposable {
 		}
 	}
 
+	// 执行编辑
 	private _executeEdit(callback: () => void, eventsCollector: ViewModelEventsCollector, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
 		if (this.context.cursorConfig.readOnly) {
 			// we cannot edit when read only...
@@ -534,10 +543,12 @@ export class CursorsController extends Disposable {
 		return AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 	}
 
+	// 开始组合输入
 	public startComposition(eventsCollector: ViewModelEventsCollector): void {
 		this._compositionState = new CompositionState(this._model, this.getSelections());
 	}
 
+	// 结束组合输入
 	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
 		const compositionOutcome = this._compositionState ? this._compositionState.deduceOutcome(this._model, this.getSelections()) : null;
 		this._compositionState = null;
@@ -550,6 +561,7 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
+	// 输入文本
 	public type(eventsCollector: ViewModelEventsCollector, text: string, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
@@ -591,18 +603,21 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
+	// 粘贴文本
 	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []));
 		}, eventsCollector, source, CursorChangeReason.Paste);
 	}
 
+	// 剪切文本
 	public cut(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelections()));
 		}, eventsCollector, source);
 	}
 
+	// 执行命令
 	public executeCommand(eventsCollector: ViewModelEventsCollector, command: editorCommon.ICommand, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			this._cursors.killSecondaryCursors();
@@ -740,8 +755,10 @@ interface ICommandsData {
 	hadTrackedEditOperation: boolean;
 }
 
+// CommandExecutor 类:负责执行编辑命令
 export class CommandExecutor {
 
+	// 执行多个命令
 	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: (editorCommon.ICommand | null)[]): Selection[] | null {
 
 		const ctx: IExecContext = {
@@ -866,6 +883,7 @@ export class CommandExecutor {
 		return true;
 	}
 
+	// 获取编辑操作
 	private static _getEditOperations(ctx: IExecContext, commands: (editorCommon.ICommand | null)[]): ICommandsData {
 		let operations: IIdentifiedSingleEditOperation[] = [];
 		let hadTrackedEditOperation: boolean = false;
@@ -884,6 +902,7 @@ export class CommandExecutor {
 		};
 	}
 
+	// 从命令获取编辑操作
 	private static _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
@@ -1017,14 +1036,7 @@ export class CommandExecutor {
 	}
 }
 
-class CompositionLineState {
-	constructor(
-		public readonly text: string,
-		public readonly startSelection: number,
-		public readonly endSelection: number
-	) { }
-}
-
+// CompositionState 类:管理输入法组合状态
 class CompositionState {
 
 	private readonly _original: CompositionLineState[] | null;
@@ -1048,10 +1060,7 @@ class CompositionState {
 		this._original = CompositionState._capture(textModel, selections);
 	}
 
-	/**
-	 * Returns the inserted text during this composition.
-	 * If the composition resulted in existing text being changed (i.e. not a pure insertion) it returns null.
-	 */
+	// 推断组合输入的结果
 	deduceOutcome(textModel: ITextModel, selections: Selection[]): CompositionOutcome[] | null {
 		if (!this._original) {
 			return null;

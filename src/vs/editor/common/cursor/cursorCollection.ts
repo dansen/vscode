@@ -179,16 +179,26 @@ export class CursorCollection {
 	}
 
 	// 规范化光标，处理重叠的光标
+	/**
+	 * 规范化光标，处理重叠的光标
+	 * 该函数用于合并或删除重叠的光标，以确保光标集合的一致性
+	 */
 	public normalize(): void {
+		// 如果只有一个光标，无需规范化
 		if (this.cursors.length === 1) {
 			return;
 		}
+
+		// 复制光标数组，避免直接修改原数组
 		const cursors = this.cursors.slice(0);
 
+		// 定义排序后的光标接口
 		interface SortedCursor {
-			index: number;
-			selection: Selection;
+			index: number;      // 原始索引
+			selection: Selection; // 选择范围
 		}
+
+		// 创建排序后的光标数组
 		const sortedCursors: SortedCursor[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			sortedCursors.push({
@@ -197,8 +207,10 @@ export class CursorCollection {
 			});
 		}
 
+		// 根据选择范围的起始位置对光标进行排序
 		sortedCursors.sort(compareBy(s => s.selection, Range.compareRangesUsingStarts));
 
+		// 遍历排序后的光标，检查并合并重叠的光标
 		for (let sortedCursorIndex = 0; sortedCursorIndex < sortedCursors.length - 1; sortedCursorIndex++) {
 			const current = sortedCursors[sortedCursorIndex];
 			const next = sortedCursors[sortedCursorIndex + 1];
@@ -206,20 +218,22 @@ export class CursorCollection {
 			const currentSelection = current.selection;
 			const nextSelection = next.selection;
 
+			// 如果配置不允许合并重叠的多光标，则跳过
 			if (!this.context.cursorConfig.multiCursorMergeOverlapping) {
 				continue;
 			}
 
 			let shouldMergeCursors: boolean;
 			if (nextSelection.isEmpty() || currentSelection.isEmpty()) {
-				// Merge touching cursors if one of them is collapsed
+				// 如果其中一个选择是空的（光标），则合并相邻的光标
 				shouldMergeCursors = nextSelection.getStartPosition().isBeforeOrEqual(currentSelection.getEndPosition());
 			} else {
-				// Merge only overlapping cursors (i.e. allow touching ranges)
+				// 否则，只合并重叠的选择（允许相邻但不重叠的范围）
 				shouldMergeCursors = nextSelection.getStartPosition().isBefore(currentSelection.getEndPosition());
 			}
 
 			if (shouldMergeCursors) {
+				// 确定获胜和失败的光标索引
 				const winnerSortedCursorIndex = current.index < next.index ? sortedCursorIndex : sortedCursorIndex + 1;
 				const looserSortedCursorIndex = current.index < next.index ? sortedCursorIndex + 1 : sortedCursorIndex;
 
@@ -229,21 +243,23 @@ export class CursorCollection {
 				const looserSelection = sortedCursors[looserSortedCursorIndex].selection;
 				const winnerSelection = sortedCursors[winnerSortedCursorIndex].selection;
 
+				// 如果两个选择不相等，则合并它们
 				if (!looserSelection.equalsSelection(winnerSelection)) {
 					const resultingRange = looserSelection.plusRange(winnerSelection);
 					const looserSelectionIsLTR = (looserSelection.selectionStartLineNumber === looserSelection.startLineNumber && looserSelection.selectionStartColumn === looserSelection.startColumn);
 					const winnerSelectionIsLTR = (winnerSelection.selectionStartLineNumber === winnerSelection.startLineNumber && winnerSelection.selectionStartColumn === winnerSelection.startColumn);
 
-					// Give more importance to the last added cursor (think Ctrl-dragging + hitting another cursor)
+					// 确定结果选择的方向（从左到右还是从右到左）
 					let resultingSelectionIsLTR: boolean;
 					if (looserIndex === this.lastAddedCursorIndex) {
 						resultingSelectionIsLTR = looserSelectionIsLTR;
 						this.lastAddedCursorIndex = winnerIndex;
 					} else {
-						// Winner takes it all
+						// 获胜者决定方向
 						resultingSelectionIsLTR = winnerSelectionIsLTR;
 					}
 
+					// 创建新的选择
 					let resultingSelection: Selection;
 					if (resultingSelectionIsLTR) {
 						resultingSelection = new Selection(resultingRange.startLineNumber, resultingRange.startColumn, resultingRange.endLineNumber, resultingRange.endColumn);
@@ -251,21 +267,25 @@ export class CursorCollection {
 						resultingSelection = new Selection(resultingRange.endLineNumber, resultingRange.endColumn, resultingRange.startLineNumber, resultingRange.startColumn);
 					}
 
+					// 更新获胜光标的选择
 					sortedCursors[winnerSortedCursorIndex].selection = resultingSelection;
 					const resultingState = CursorState.fromModelSelection(resultingSelection);
 					cursors[winnerIndex].setState(this.context, resultingState.modelState, resultingState.viewState);
 				}
 
+				// 更新剩余光标的索引
 				for (const sortedCursor of sortedCursors) {
 					if (sortedCursor.index > looserIndex) {
 						sortedCursor.index--;
 					}
 				}
 
+				// 移除失败的光标
 				cursors.splice(looserIndex, 1);
 				sortedCursors.splice(looserSortedCursorIndex, 1);
 				this._removeSecondaryCursor(looserIndex - 1);
 
+				// 回退索引以重新检查当前位置
 				sortedCursorIndex--;
 			}
 		}
