@@ -14,20 +14,26 @@ import { ISelection, Selection } from '../core/selection.js';
 
 export class CursorCollection {
 
+	// 存储光标操作的上下文信息
 	private context: CursorContext;
 
 	/**
 	 * `cursors[0]` is the primary cursor, thus `cursors.length >= 1` is always true.
 	 * `cursors.slice(1)` are secondary cursors.
+	 *
+	 * `cursors[0]` 是主光标，`cursors.length >= 1` 始终为真。
+	 * `cursors.slice(1)` 是次要光标。
 	*/
 	private cursors: Cursor[];
 
 	// An index which identifies the last cursor that was added / moved (think Ctrl+drag)
 	// This index refers to `cursors.slice(1)`, i.e. after removing the primary cursor.
+	// 标识最后添加/移动的光标的索引（不包括主光标）
 	private lastAddedCursorIndex: number;
 
 	constructor(context: CursorContext) {
 		this.context = context;
+		// 初始化时创建一个主光标
 		this.cursors = [new Cursor(context)];
 		this.lastAddedCursorIndex = 0;
 	}
@@ -64,10 +70,12 @@ export class CursorCollection {
 		return this.cursors.map(c => c.readSelectionFromMarkers(this.context));
 	}
 
+	// 获取所有光标的状态
 	public getAll(): CursorState[] {
 		return this.cursors.map(c => c.asCursorState());
 	}
 
+	// 获取所有光标的视图位置
 	public getViewPositions(): Position[] {
 		return this.cursors.map(c => c.viewState.position);
 	}
@@ -86,32 +94,40 @@ export class CursorCollection {
 		)!.viewState.position;
 	}
 
+	// 获取所有光标的选择
 	public getSelections(): Selection[] {
 		return this.cursors.map(c => c.modelState.selection);
 	}
 
+	// 获取所有光标的视图选择
 	public getViewSelections(): Selection[] {
 		return this.cursors.map(c => c.viewState.selection);
 	}
 
+	// 设置所有光标的选择
 	public setSelections(selections: ISelection[]): void {
 		this.setStates(CursorState.fromModelSelections(selections));
 	}
 
+	// 获取主光标
 	public getPrimaryCursor(): CursorState {
 		return this.cursors[0].asCursorState();
 	}
 
+	// 设置所有光标的状态
 	public setStates(states: PartialCursorState[] | null): void {
 		if (states === null) {
 			return;
 		}
+		// 设置主光标状态
 		this.cursors[0].setState(this.context, states[0].modelState, states[0].viewState);
+		// 设置次要光标状态
 		this._setSecondaryStates(states.slice(1));
 	}
 
 	/**
 	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
+	 * 根据需要创建或删除次要光标，以匹配 `secondarySelections` 的数量。
 	 */
 	private _setSecondaryStates(secondaryStates: PartialCursorState[]): void {
 		const secondaryCursorsLength = this.cursors.length - 1;
@@ -134,15 +150,18 @@ export class CursorCollection {
 		}
 	}
 
+	// 删除所有次要光标
 	public killSecondaryCursors(): void {
 		this._setSecondaryStates([]);
 	}
 
+	// 添加一个次要光标
 	private _addSecondaryCursor(): void {
 		this.cursors.push(new Cursor(this.context));
 		this.lastAddedCursorIndex = this.cursors.length - 1;
 	}
 
+	// 获取最后添加的光标的索引
 	public getLastAddedCursorIndex(): number {
 		if (this.cursors.length === 1 || this.lastAddedCursorIndex === 0) {
 			return 0;
@@ -150,6 +169,7 @@ export class CursorCollection {
 		return this.lastAddedCursorIndex;
 	}
 
+	// 删除一个次要光标
 	private _removeSecondaryCursor(removeIndex: number): void {
 		if (this.lastAddedCursorIndex >= removeIndex + 1) {
 			this.lastAddedCursorIndex--;
@@ -158,6 +178,7 @@ export class CursorCollection {
 		this.cursors.splice(removeIndex + 1, 1);
 	}
 
+	// 规范化光标，处理重叠的光标
 	public normalize(): void {
 		if (this.cursors.length === 1) {
 			return;
