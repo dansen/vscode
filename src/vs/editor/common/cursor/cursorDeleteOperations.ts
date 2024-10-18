@@ -16,18 +16,43 @@ import { StandardAutoClosingPairConditional } from '../languages/languageConfigu
 import { Position } from '../core/position.js';
 
 export class DeleteOperations {
+	/**
+	 * DeleteOperations 类
+	 *
+	 * 这个类包含了与删除操作相关的静态方法,用于处理编辑器中的各种删除场景。
+	 * 主要功能包括:
+	 * 1. 向右删除
+	 * 2. 自动闭合对的删除
+	 * 3. 向左删除
+	 * 4. 剪切操作
+	 */
 
+	/**
+	 * 执行向右删除操作
+	 * @param prevEditOperationType 上一次编辑操作的类型
+	 * @param config 光标配置
+	 * @param model 简单光标模型
+	 * @param selections 当前选择的范围数组
+	 * @returns [是否应该在操作前推入堆栈元素, 删除命令数组]
+	 */
 	public static deleteRight(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, Array<ICommand | null>] {
+		// 存储删除命令的数组
 		const commands: Array<ICommand | null> = [];
+		// 判断是否应该在操作前推入堆栈元素
 		let shouldPushStackElementBefore = (prevEditOperationType !== EditOperationType.DeletingRight);
+
+		// 遍历所有选择范围
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
 			let deleteSelection: Range = selection;
 
+			// 如果选择范围为空(即光标位置)
 			if (deleteSelection.isEmpty()) {
 				const position = selection.getPosition();
+				// 获取当前位置右侧的位置
 				const rightOfPosition = MoveOperations.right(config, model, position);
+				// 创建一个新的范围,从当前位置到右侧位置
 				deleteSelection = new Range(
 					rightOfPosition.lineNumber,
 					rightOfPosition.column,
@@ -36,18 +61,23 @@ export class DeleteOperations {
 				);
 			}
 
+			// 如果删除范围为空(可能是文件末尾)
 			if (deleteSelection.isEmpty()) {
-				// Probably at end of file => ignore
+				// 忽略此选择,不执行删除操作
 				commands[i] = null;
 				continue;
 			}
 
+			// 如果删除范围跨越多行,设置标志以在操作前推入堆栈元素
 			if (deleteSelection.startLineNumber !== deleteSelection.endLineNumber) {
 				shouldPushStackElementBefore = true;
 			}
 
+			// 创建一个替换命令,用空字符串替换删除范围
 			commands[i] = new ReplaceCommand(deleteSelection, '');
 		}
+
+		// 返回是否应该推入堆栈元素和删除命令数组
 		return [shouldPushStackElementBefore, commands];
 	}
 
